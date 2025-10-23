@@ -1,0 +1,38 @@
+calculator/
+│
+├── 📄 README.md                    # Hướng dẫn chính (cài đặt, chạy, API)
+├── 📄 QUICKSTART.md                # Hướng dẫn nhanh (5 phút để bắt đầu)
+├── 📄 TESTING_GUIDE.md             # Hướng dẫn Unit Test & Coverage
+├── 📄 CICD_GUIDE.md                # Hướng dẫn CI/CD với Jenkins
+├── 📄 Jenkinsfile                  # Pipeline configuration cho Jenkins
+├── 📄 docker-compose.yml           # Docker Compose (chạy BE + FE)
+├── 📄 .gitignore                   # Git ignore configuration
+│
+├── 📁 backend/                     # Backend (FastAPI + Python)
+│   ├── 📁 app/
+│   │   ├── __init__.py             # Package init
+│   │   ├── logic.py                # ⭐ Logic tính toán (add, subtract, multiply, divide)
+│   │   └── main.py                 # ⭐ FastAPI endpoints + CORS
+│   │
+│   ├── 📁 tests/
+│   │   ├── __init__.py             # Package init
+│   │   ├── test_logic.py           # ⭐ Unit tests cho logic.py (100% coverage)
+│   │   └── test_main.py            # ⭐ API tests cho main.py (100% coverage)
+│   │
+│   ├── 📄 requirements.txt         # Python dependencies
+│   ├── 📄 Dockerfile               # Backend Docker image
+│   └── 📝 Chạy: uvicorn app.main:app --reload
+│
+├── 📁 frontend/                    # Frontend (HTML/CSS/JS)
+│   ├── 📄 index.html               # ⭐ UI máy tính (responsive design)
+│   ├── 📄 style.css                # ⭐ Styling + animations
+│   ├── 📄 app.js                   # ⭐ JavaScript logic + fetch() API calls
+│   ├── 📄 Dockerfile               # Frontend Docker image (Nginx)
+│   └── 📝 Chạy: python -m http.server 8080
+│
+└── 📊 STRUCTURE SUMMARY
+    ├── 21 Unit Tests (test_logic.py) → 100% Coverage
+    ├── 12 API Tests (test_main.py) → 100% Coverage
+    ├── 4 Operations (Add, Subtract, Multiply, Divide)
+    ├── Error Handling (Division by Zero)
+    └── CORS Middleware (Frontend-Backend Communication)

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator - Demo App</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="calculator">
+            <h1>Máy Tính</h1>
+            
+            <!-- Display Screen -->
+            <div class="display">
+                <input type="text" id="display" readonly value="0">
+            </div>
+            
+            <!-- Buttons Grid -->
+            <div class="buttons">
+                <!-- Row 1 -->
+                <button class="btn btn-function" onclick="clearDisplay()">C</button>
+                <button class="btn btn-function" onclick="appendOperator('/')">/</button>
+                <button class="btn btn-function" onclick="appendOperator('*')">*</button>
+                <button class="btn btn-delete" onclick="deleteLast()">DEL</button>
+                
+                <!-- Row 2 -->
+                <button class="btn" onclick="appendNumber('7')">7</button>
+                <button class="btn" onclick="appendNumber('8')">8</button>
+                <button class="btn" onclick="appendNumber('9')">9</button>
+                <button class="btn btn-function" onclick="appendOperator('-')">-</button>
+                
+                <!-- Row 3 -->
+                <button class="btn" onclick="appendNumber('4')">4</button>
+                <button class="btn" onclick="appendNumber('5')">5</button>
+                <button class="btn" onclick="appendNumber('6')">6</button>
+                <button class="btn btn-function" onclick="appendOperator('+')">+</button>
+                
+                <!-- Row 4 -->
+                <button class="btn" onclick="appendNumber('1')">1</button>
+                <button class="btn" onclick="appendNumber('2')">2</button>
+                <button class="btn" onclick="appendNumber('3')">3</button>
+                <button class="btn btn-equals" onclick="calculate()" rowspan="2">=</button>
+                
+                <!-- Row 5 -->
+                <button class="btn btn-zero" onclick="appendNumber('0')">0</button>
+                <button class="btn" onclick="appendNumber('.')">.</button>
+            </div>
+            
+            <!-- Status Message -->
+            <div id="status" class="status"></div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
