@@ -46,30 +46,36 @@ pipeline {
             }
         }
         
-        stage('Build Docker Images') {
+        stage('Start Backend Service') {
             steps {
-                echo '===== Building Docker Images ====='
-                sh '''
-                    docker build -t calculator-backend:${BUILD_NUMBER} ./backend
-                    docker build -t calculator-frontend:${BUILD_NUMBER} ./frontend
-                '''
+                echo '===== Starting Backend Service ====='
+                dir('backend') {
+                    sh '''
+                        . venv/bin/activate
+                        # Kill old process if exists
+                        pkill -f "uvicorn app.main" || true
+                        sleep 2
+                        # Start new service in background
+                        nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+                        sleep 3
+                        echo "✓ Backend running on http://localhost:8000"
+                    '''
+                }
             }
         }
         
-        stage('Deploy') {
+        stage('Start Frontend Service') {
             steps {
-                echo '===== Deploying Application ====='
+                echo '===== Starting Frontend Service ====='
                 sh '''
-                    # Stop existing containers if any
-                    docker stop calculator-backend 2>/dev/null || true
-                    docker stop calculator-frontend 2>/dev/null || true
-                    
-                    # Run new containers
-                    docker run -d --name calculator-backend -p 8000:8000 calculator-backend:${BUILD_NUMBER}
-                    docker run -d --name calculator-frontend -p 80:80 calculator-frontend:${BUILD_NUMBER}
-                    
-                    echo "Backend: http://localhost:8000"
-                    echo "Frontend: http://localhost:80"
+                    cd frontend
+                    # Kill old process if exists
+                    pkill -f "python -m http.server 8080" || true
+                    sleep 2
+                    # Start new service in background
+                    nohup python -m http.server 8080 > frontend.log 2>&1 &
+                    sleep 2
+                    echo "✓ Frontend running on http://localhost:8080"
                 '''
             }
         }
@@ -77,7 +83,8 @@ pipeline {
     
     post {
         always {
-            echo '===== Cleanup ====='
+            echo '===== Post Build Actions ====='
+            
             // Publish coverage report
             publishHTML(target: [
                 reportDir: 'backend/htmlcov',
@@ -87,14 +94,25 @@ pipeline {
             
             // Archive coverage XML for Cobertura plugin
             archiveArtifacts artifacts: 'backend/coverage.xml', allowEmptyArchive: true
+            
+            // Archive logs
+            archiveArtifacts artifacts: 'backend/backend.log', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'frontend/frontend.log', allowEmptyArchive: true
         }
         
         success {
             echo '✓ Build and Deployment Successful!'
+            echo '📍 Backend: http://localhost:8000'
+            echo '📍 Frontend: http://localhost:8080'
+            echo '📍 API Docs: http://localhost:8000/docs'
         }
         
         failure {
             echo '✗ Build or Deployment Failed!'
+            sh '''
+                echo "=== Backend Log ===" && tail -20 backend/backend.log || true
+                echo "=== Frontend Log ===" && tail -20 frontend/frontend.log || true
+            '''
         }
     }
 }
