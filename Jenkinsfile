@@ -1,14 +1,11 @@
 pipeline {
     agent {
-        docker {
-            image 'python:3.10-slim'  
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
+        label 'window-agent'
     }
 
     environment {
         BUILD_TAG = "${BUILD_NUMBER}"
-        REGISTRY = "localhost"
+        PYTHON_HOME = "C:\\Python312"
     }
 
     stages {
@@ -23,9 +20,9 @@ pipeline {
             steps {
                 echo '===== Setup Python Environment ====='
                 dir('backend') {
-                    sh '''
-                        python3 -m venv venv
-                        . venv/bin/activate
+                    bat '''
+                        python -m venv venv
+                        call venv\\Scripts\\activate.bat
                         pip install --upgrade pip
                         pip install -r requirements.txt
                     '''
@@ -37,8 +34,8 @@ pipeline {
             steps {
                 echo '===== Running Unit Tests ====='
                 dir('backend') {
-                    sh '''
-                        . venv/bin/activate
+                    bat '''
+                        call venv\\Scripts\\activate.bat
                         pytest tests/ -v
                     '''
                 }
@@ -49,8 +46,8 @@ pipeline {
             steps {
                 echo '===== Generating Coverage Report ====='
                 dir('backend') {
-                    sh '''
-                        . venv/bin/activate
+                    bat '''
+                        call venv\\Scripts\\activate.bat
                         pytest tests/ --cov=app --cov-report=xml --cov-report=html -v
                     '''
                 }
@@ -58,62 +55,48 @@ pipeline {
         }
 
         stage('Build Docker Images') {
-            agent {
-                label 'window-agent'
-            }
             steps {
                 echo '===== Building Docker Images ====='
-                sh '''
-                    echo "Building Backend Docker Image..."
-                    docker build -t calculator-backend:${BUILD_TAG} -t calculator-backend:latest ./backend
+                bat '''
+                    echo Building Backend Docker Image...
+                    docker build -t calculator-backend:%BUILD_TAG% -t calculator-backend:latest ./backend
                     
-                    echo "Building Frontend Docker Image..."
-                    docker build -t calculator-frontend:${BUILD_TAG} -t calculator-frontend:latest ./frontend
+                    echo Building Frontend Docker Image...
+                    docker build -t calculator-frontend:%BUILD_TAG% -t calculator-frontend:latest ./frontend
                     
-                    echo "✓ Docker images built successfully"
-                    docker images | grep calculator
+                    echo ✓ Docker images built successfully
+                    docker images | find "calculator"
                 '''
             }
         }
 
         stage('Deploy Docker Containers') {
-            agent {
-                label 'window-agent'
-            }
             steps {
                 echo '===== Deploying Docker Containers ====='
-                sh '''
-                    # Stop and remove old containers
-                    echo "Stopping old containers..."
-                    docker stop calculator-backend 2>/dev/null || true
-                    docker stop calculator-frontend 2>/dev/null || true
-                    docker rm calculator-backend 2>/dev/null || true
-                    docker rm calculator-frontend 2>/dev/null || true
-                    sleep 2
+                bat '''
+                    echo Stopping old containers...
+                    docker stop calculator-backend 2>nul || echo "No container to stop"
+                    docker stop calculator-frontend 2>nul || echo "No container to stop"
+                    docker rm calculator-backend 2>nul || echo "No container to remove"
+                    docker rm calculator-frontend 2>nul || echo "No container to remove"
+                    timeout /t 2 /nobreak
                     
-                    # Run new containers
-                    echo "Starting Backend Container..."
-                    docker run -d \
-                        --name calculator-backend \
-                        -p 8000:8000 \
-                        --log-driver json-file \
-                        --log-opt max-size=10m \
-                        --log-opt max-file=3 \
-                        calculator-backend:${BUILD_TAG}
+                    echo Starting Backend Container...
+                    docker run -d ^
+                        --name calculator-backend ^
+                        -p 8000:8000 ^
+                        calculator-backend:%BUILD_TAG%
                     
-                    echo "Starting Frontend Container..."
-                    docker run -d \
-                        --name calculator-frontend \
-                        -p 80:80 \
-                        --log-driver json-file \
-                        --log-opt max-size=10m \
-                        --log-opt max-file=3 \
-                        calculator-frontend:${BUILD_TAG}
+                    echo Starting Frontend Container...
+                    docker run -d ^
+                        --name calculator-frontend ^
+                        -p 80:80 ^
+                        calculator-frontend:%BUILD_TAG%
                     
-                    sleep 3
+                    timeout /t 3 /nobreak
                     
-                    echo "✓ Containers started successfully"
-                    docker ps | grep calculator
+                    echo ✓ Containers started successfully
+                    docker ps | find "calculator"
                 '''
             }
         }
@@ -122,16 +105,9 @@ pipeline {
     post {
         always {
             echo '===== Post Build Actions ====='
-
-            // Publish coverage report
-            publishHTML(target: [
-                reportDir: 'backend/htmlcov',
-                reportFiles: 'index.html',
-                reportName: 'Coverage Report'
-            ])
-
-            // Archive artifacts
+            
             archiveArtifacts artifacts: 'backend/coverage.xml', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'backend/htmlcov/**', allowEmptyArchive: true
         }
 
         success {
@@ -140,15 +116,17 @@ pipeline {
             echo '📍 Backend: http://localhost:8000'
             echo '📍 Frontend: http://localhost:80'
             echo '📍 API Docs: http://localhost:8000/docs'
-            echo '📍 Coverage: Jenkins Dashboard'
             echo '════════════════════════════════════════════'
         }
 
         failure {
             echo '✗ Build or Deployment Failed!'
-            sh '''
-                echo "=== Docker Images ===" && docker images | grep calculator || true
-                echo "=== Running Containers ===" && docker ps | grep calculator || true
+            bat '''
+                echo === Docker Images ===
+                docker images | find "calculator" || echo "No images found"
+                
+                echo === Running Containers ===
+                docker ps | find "calculator" || echo "No containers running"
             '''
         }
     }
