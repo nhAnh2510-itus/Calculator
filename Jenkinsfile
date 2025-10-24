@@ -6,6 +6,11 @@ pipeline {
         }
     }
 
+    environment {
+        BUILD_TAG = "${BUILD_NUMBER}"
+        REGISTRY = "localhost"
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -52,32 +57,63 @@ pipeline {
             }
         }
 
-        stage('Start Backend Service') {
+        stage('Build Docker Images') {
+            agent {
+                label 'window-agent'
+            }
             steps {
-                echo '===== Starting Backend Service ====='
-                dir('backend') {
-                    sh '''
-                        . venv/bin/activate
-                        pkill -f "uvicorn app.main" || true
-                        sleep 2
-                        nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
-                        sleep 3
-                        echo "✓ Backend running on http://localhost:8000"
-                    '''
-                }
+                echo '===== Building Docker Images ====='
+                sh '''
+                    echo "Building Backend Docker Image..."
+                    docker build -t calculator-backend:${BUILD_TAG} -t calculator-backend:latest ./backend
+                    
+                    echo "Building Frontend Docker Image..."
+                    docker build -t calculator-frontend:${BUILD_TAG} -t calculator-frontend:latest ./frontend
+                    
+                    echo "✓ Docker images built successfully"
+                    docker images | grep calculator
+                '''
             }
         }
 
-        stage('Start Frontend Service') {
+        stage('Deploy Docker Containers') {
+            agent {
+                label 'window-agent'
+            }
             steps {
-                echo '===== Starting Frontend Service ====='
+                echo '===== Deploying Docker Containers ====='
                 sh '''
-                    cd frontend
-                    pkill -f "python -m http.server 8080" || true
+                    # Stop and remove old containers
+                    echo "Stopping old containers..."
+                    docker stop calculator-backend 2>/dev/null || true
+                    docker stop calculator-frontend 2>/dev/null || true
+                    docker rm calculator-backend 2>/dev/null || true
+                    docker rm calculator-frontend 2>/dev/null || true
                     sleep 2
-                    nohup python -m http.server 8080 > frontend.log 2>&1 &
-                    sleep 2
-                    echo "✓ Frontend running on http://localhost:8080"
+                    
+                    # Run new containers
+                    echo "Starting Backend Container..."
+                    docker run -d \
+                        --name calculator-backend \
+                        -p 8000:8000 \
+                        --log-driver json-file \
+                        --log-opt max-size=10m \
+                        --log-opt max-file=3 \
+                        calculator-backend:${BUILD_TAG}
+                    
+                    echo "Starting Frontend Container..."
+                    docker run -d \
+                        --name calculator-frontend \
+                        -p 80:80 \
+                        --log-driver json-file \
+                        --log-opt max-size=10m \
+                        --log-opt max-file=3 \
+                        calculator-frontend:${BUILD_TAG}
+                    
+                    sleep 3
+                    
+                    echo "✓ Containers started successfully"
+                    docker ps | grep calculator
                 '''
             }
         }
@@ -87,30 +123,32 @@ pipeline {
         always {
             echo '===== Post Build Actions ====='
 
-            // Publish coverage report (cần cài plugin HTML Publisher)
+            // Publish coverage report
             publishHTML(target: [
                 reportDir: 'backend/htmlcov',
                 reportFiles: 'index.html',
                 reportName: 'Coverage Report'
             ])
 
+            // Archive artifacts
             archiveArtifacts artifacts: 'backend/coverage.xml', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'backend/backend.log', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'frontend/frontend.log', allowEmptyArchive: true
         }
 
         success {
             echo '✓ Build and Deployment Successful!'
+            echo '════════════════════════════════════════════'
             echo '📍 Backend: http://localhost:8000'
-            echo '📍 Frontend: http://localhost:8080'
+            echo '📍 Frontend: http://localhost:80'
             echo '📍 API Docs: http://localhost:8000/docs'
+            echo '📍 Coverage: Jenkins Dashboard'
+            echo '════════════════════════════════════════════'
         }
 
         failure {
             echo '✗ Build or Deployment Failed!'
             sh '''
-                echo "=== Backend Log ===" && tail -20 backend/backend.log || true
-                echo "=== Frontend Log ===" && tail -20 frontend/frontend.log || true
+                echo "=== Docker Images ===" && docker images | grep calculator || true
+                echo "=== Running Containers ===" && docker ps | grep calculator || true
             '''
         }
     }
