@@ -1,6 +1,10 @@
 pipeline {
-    agent any
-    
+    agent {
+        docker {
+            image 'python:3.10-slim'  
+        }
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -8,7 +12,7 @@ pipeline {
                 checkout scm
             }
         }
-        
+
         stage('Setup Backend Environment') {
             steps {
                 echo '===== Setup Python Environment ====='
@@ -16,12 +20,13 @@ pipeline {
                     sh '''
                         python3 -m venv venv
                         . venv/bin/activate
+                        pip install --upgrade pip
                         pip install -r requirements.txt
                     '''
                 }
             }
         }
-        
+
         stage('Run Backend Tests') {
             steps {
                 echo '===== Running Unit Tests ====='
@@ -33,7 +38,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Generate Code Coverage Report') {
             steps {
                 echo '===== Generating Coverage Report ====='
@@ -45,17 +50,15 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Start Backend Service') {
             steps {
                 echo '===== Starting Backend Service ====='
                 dir('backend') {
                     sh '''
                         . venv/bin/activate
-                        # Kill old process if exists
                         pkill -f "uvicorn app.main" || true
                         sleep 2
-                        # Start new service in background
                         nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
                         sleep 3
                         echo "✓ Backend running on http://localhost:8000"
@@ -63,16 +66,14 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Start Frontend Service') {
             steps {
                 echo '===== Starting Frontend Service ====='
                 sh '''
                     cd frontend
-                    # Kill old process if exists
                     pkill -f "python -m http.server 8080" || true
                     sleep 2
-                    # Start new service in background
                     nohup python -m http.server 8080 > frontend.log 2>&1 &
                     sleep 2
                     echo "✓ Frontend running on http://localhost:8080"
@@ -80,33 +81,30 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
             echo '===== Post Build Actions ====='
-            
-            // Publish coverage report
+
+            // Publish coverage report (cần cài plugin HTML Publisher)
             publishHTML(target: [
                 reportDir: 'backend/htmlcov',
                 reportFiles: 'index.html',
                 reportName: 'Coverage Report'
             ])
-            
-            // Archive coverage XML for Cobertura plugin
+
             archiveArtifacts artifacts: 'backend/coverage.xml', allowEmptyArchive: true
-            
-            // Archive logs
             archiveArtifacts artifacts: 'backend/backend.log', allowEmptyArchive: true
             archiveArtifacts artifacts: 'frontend/frontend.log', allowEmptyArchive: true
         }
-        
+
         success {
             echo '✓ Build and Deployment Successful!'
             echo '📍 Backend: http://localhost:8000'
             echo '📍 Frontend: http://localhost:8080'
             echo '📍 API Docs: http://localhost:8000/docs'
         }
-        
+
         failure {
             echo '✗ Build or Deployment Failed!'
             sh '''
